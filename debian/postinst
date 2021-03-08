@@ -4,7 +4,7 @@ if [[ -L "/usr/bin/lockex" ]]
 then
 	exit 0
 fi
-ln -sf /usr/share/python/lockex/bin/lockex /usr/bin/lockex
+ln -sf /opt/venvs/lockex/bin/lockex /usr/bin/lockex
 
 #DEBHELPER#
 exit 0
