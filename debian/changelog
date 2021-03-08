@@ -1,3 +1,10 @@
+lockex (0.3-1~t1) unstable; urgency=low
+
+  * Added option to parse a configuration file for Zookeeper.
+  * Update dependencies.
+
+ -- Octavian Cerna <tavy@tavy.me>  Mon, 08 Mar 2021 12:54:23 +0000
+
 lockex (0.3-1) unstable; urgency=low
 
   * Added option for allowing user to specify lock id and path
