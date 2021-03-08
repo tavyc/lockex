@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+import ConfigParser
 
 import click
 import psutil
@@ -18,6 +19,7 @@ import psutil
 from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import LockTimeout, ConnectionClosedError
 from kazoo.handlers.threading import KazooTimeoutError
+from kazoo.security import make_acl
 import lockex.glog as log
 
 click.disable_unicode_literals_warning = True
@@ -32,9 +34,10 @@ click.disable_unicode_literals_warning = True
 @click.option('--locktimeout', '-t', help='Timeout for waiting for lock aquistion, the default is to wait forever', default=None, type=click.FLOAT)
 @click.option('--retry', '-R', help='How many times to try the connecting to zookeeper before failing', default=1)
 @click.option('--timeout', '-T', help='Timeout for connecting to zk', default=30)
+@click.option('--zkconf', '-C', help='ZooKeeper client config file', default=None, type=click.Path(exists=True, dir_okay=False))
 @click.option('--zkhosts', '-z', envvar='ZKHOSTS', help='List of comma seperated zookeeper hosts, in the form of hostname:port', default='localhost:2181')
 @click.argument('command', nargs=-1, metavar='<command>')
-def execute(blocking, command, concurrent, lockid, lockpath, lockretry, locktimeout, retry, timeout, zkhosts,):
+def execute(blocking, command, concurrent, lockid, lockpath, lockretry, locktimeout, retry, timeout, zkconf, zkhosts,):
     '''
     Main execution logic of getting a lock and executing the user supplied command
     '''
@@ -53,7 +56,7 @@ def execute(blocking, command, concurrent, lockid, lockpath, lockretry, locktime
 
     command_retry_d = dict(max_tries=lockretry)
     connection_retry_d = dict(max_tries=retry)
-    conn = get_zk(zkhosts, timeout, command_retry=command_retry_d, connection_retry=connection_retry_d)
+    conn, zkhosts = get_zk(zkconf, zkhosts, timeout, command_retry=command_retry_d, connection_retry=connection_retry_d)
     log.info("Locking with zkhosts={zkhosts} lockname={lockname} resource={resource} concurrent={concurrent} blocking={blocking} command='{command}'"
              .format(zkhosts=zkhosts, lockname=lockname, resource=resource, concurrent=concurrent, blocking=blocking, command=command))
 
@@ -148,18 +151,42 @@ def kill(pid):
             pass
 
 
-def get_zk(zkhosts, timeout, command_retry=None, connection_retry=None):
+def get_zk(zkconf, zkhosts, timeout, command_retry=None, connection_retry=None):
     '''
     Initiate a zookeeper connection and add a listener
     '''
-    conn = KazooClient(hosts=zkhosts, timeout=timeout, command_retry=command_retry, connection_retry=connection_retry)
+
+    def parse_acl(s):
+        parts = s.split(':')
+        if len(parts) < 3:
+            raise RuntimeError("invalid ACL spec: %s" % s)
+        scheme, cred, perms = parts[0], parts[1:-1], parts[-1]
+        return make_acl(scheme, ':'.join(cred), read='r' in perms, write='w' in perms,
+           create='c' in perms, delete='d' in perms, admin='a' in perms, all='*' in perms)
+
+    auth_data = None
+    default_acl = None
+
+    if zkconf:
+       parser = ConfigParser.ConfigParser()
+       with open(zkconf, 'r') as fp:
+           parser.readfp(fp, zkconf)
+       if zkhosts == 'localhost:2181' and parser.has_option('zookeeper', 'hosts'):
+           zkhosts = parser.get('zookeeper', 'hosts').split()
+       if parser.has_option('zookeeper', 'auth'):
+           auth_data = [tuple(a.split(':', 1)) for a in parser.get('zookeeper', 'auth').split()]
+       if parser.has_option('zookeeper', 'default_acl'):
+           default_acl = [parse_acl(a) for a in parser.get('zookeeper', 'default_acl').split()]
+
+    conn = KazooClient(hosts=zkhosts, default_acl=default_acl, auth_data=auth_data,
+        timeout=timeout, command_retry=command_retry, connection_retry=connection_retry)
     conn.add_listener(listener)
     try:
         conn.start()
     except KazooTimeoutError as exc:
         log.error(exc)
         sys.exit(1)
-    return conn
+    return conn, zkhosts
 
 
 def listener(state):
