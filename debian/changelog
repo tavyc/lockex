@@ -1,4 +1,4 @@
-lockex (0.3-1~t1) unstable; urgency=low
+lockex (0.3-2) unstable; urgency=low
 
   * Added option to parse a configuration file for Zookeeper.
   * Update dependencies.
