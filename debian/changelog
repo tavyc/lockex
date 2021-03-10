@@ -1,3 +1,9 @@
+lockex (0.3-3) unstable; urgency=low
+
+  * Added support for SASL authentication.
+
+ -- Octavian Cerna <tavy@tavy.me>  Mon, 10 Mar 2021 12:54:23 +0000
+
 lockex (0.3-2) unstable; urgency=low
 
   * Added option to parse a configuration file for Zookeeper.

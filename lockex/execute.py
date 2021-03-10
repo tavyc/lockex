@@ -166,6 +166,7 @@ def get_zk(zkconf, zkhosts, timeout, command_retry=None, connection_retry=None):
 
     auth_data = None
     default_acl = None
+    sasl_options = None
 
     if zkconf:
        parser = ConfigParser.ConfigParser()
@@ -177,8 +178,10 @@ def get_zk(zkconf, zkhosts, timeout, command_retry=None, connection_retry=None):
            auth_data = [tuple(a.split(':', 1)) for a in parser.get('zookeeper', 'auth').split()]
        if parser.has_option('zookeeper', 'default_acl'):
            default_acl = [parse_acl(a) for a in parser.get('zookeeper', 'default_acl').split()]
+       if parser.has_section('sasl_auth'):
+           sasl_options = dict(parser.items('sasl_auth'))
 
-    conn = KazooClient(hosts=zkhosts, default_acl=default_acl, auth_data=auth_data,
+    conn = KazooClient(hosts=zkhosts, default_acl=default_acl, auth_data=auth_data, sasl_options=sasl_options,
         timeout=timeout, command_retry=command_retry, connection_retry=connection_retry)
     conn.add_listener(listener)
     try:
